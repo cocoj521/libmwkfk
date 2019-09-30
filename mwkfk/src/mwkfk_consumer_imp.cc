@@ -727,6 +727,10 @@ bool ConsumerImpl::Poll(int timeout_ms, std::string& errmsg)
 		//TODO: 判断是否待提交的offset过多,超过设定值后,强制提交
 		
 		rd_kafka_message_t* rk_msg = rd_kafka_consumer_poll(pKafka->handle_, timeout_ms);
+		
+		//托管给智能指针,防止漏析构
+		std::shared_ptr<rk_msg_safe_destory> pSafeRkMsg(new rk_msg_safe_destory(rk_msg));
+		
 		if (NULL == rk_msg || (NULL != rk_msg && RD_KAFKA_RESP_ERR_NO_ERROR != rk_msg->err)) 
 		{
 			rd_kafka_resp_err_t err = rd_kafka_last_error();
@@ -910,7 +914,7 @@ bool ConsumerImpl::CommitOffsetBatch(const std::vector<ConsumedMessagePtr>& vMsg
 
 void ConsumerImpl::rdkafka_rebalance_cb(rd_kafka_t *rk, rd_kafka_resp_err_t err, rd_kafka_topic_partition_list_t *partitions, void *opaque) 
 {
-	DEBUG(__FUNCTION__ << "rebalance begin");
+	DEBUG(__FUNCTION__ << " | rebalance begin");
 
 	switch (err) 
 	{
@@ -940,8 +944,7 @@ void ConsumerImpl::rdkafka_rebalance_cb(rd_kafka_t *rk, rd_kafka_resp_err_t err,
 			break;
 	}
 
-	
-	DEBUG(__FUNCTION__ << "rebalance end");
+	DEBUG(__FUNCTION__ << " | rebalance end");
 }
 
 void ConsumerImpl::consume_cb(rd_kafka_message_t *rkmessage, void *opaque)
@@ -958,10 +961,7 @@ void ConsumerImpl::rdkafka_consume_cb(rd_kafka_message_t * rk_msg)
 	}
 
 	int64_t cb_tm_ms = MWkfkHelper::GetCurrentTimeMs();
-	
-	//托管给智能指针,防止漏析构
-	std::shared_ptr<rk_msg_safe_destory> pSafeRkMsg(new rk_msg_safe_destory(rk_msg));
-	
+		
 	DEBUG(__FUNCTION__ 
 		<< " | consume cb | errmsg: " << rd_kafka_err2str(rk_msg->err)
 		<< " | topic: " << rd_kafka_topic_name(rk_msg->rkt) 
