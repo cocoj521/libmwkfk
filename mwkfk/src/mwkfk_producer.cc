@@ -637,7 +637,7 @@ int32_t ProducerImpl::partitioner_cb(const rd_kafka_topic_t *rkt,
 		std::vector<int32_t> vPartition;
 		for (; i < partition_cnt; ++i)
 		{
-			if (0 == rd_kafka_topic_partition_available(rkt, hit_partition)) 
+			if (1 == rd_kafka_topic_partition_available(rkt, i)) 
 			{
 				vPartition.push_back(i);
 			}

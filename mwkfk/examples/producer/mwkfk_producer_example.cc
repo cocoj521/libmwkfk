@@ -24,6 +24,9 @@ using namespace MWEVENTLOOP;
 
 int g_test_num = 200*10000;	
 
+//测试500个topic的生产
+const int g_test_topic_num = 5;
+
 //消息投递回调函数
 void func_on_msgdeliver(void* pInvoker, const ProduceMessagePtr& cb_msg_ptr)
 {
@@ -81,17 +84,25 @@ int main()
 	const char* pBrokerList = kBrokerList;//szBrokerlist
 	const char* pTopic = szTopic;//kTopicName1;//
 	//....................
-	
+
+	//初始化producer
 	mwkfk::Producer mwkfk_producer;
 	if (!mwkfk_producer.Init(pBrokerList, kLogPath, kConfigPath)) 
 	{
 		printf("Failed to init kfk_producer\n");
 		return 0;
 	}
-	if (!mwkfk_producer.AddTopic(pTopic))
+
+	//加入一批要生产数据的topic
+	for (int j = 0; j < g_test_topic_num; ++j)
 	{
-		printf("Failed to AddTopic:%s\n", pTopic);
-		return 0;
+		std::string topic = pTopic;
+		topic += std::to_string(j);
+		if (!mwkfk_producer.AddTopic(topic))
+		{
+			printf("Failed to AddTopic:%s\n", pTopic);
+			return 0;
+		}
 	}
 	/*
 	if (!mwkfk_producer.AddTopic(kTopicName2))
@@ -101,6 +112,7 @@ int main()
 	}
 	*/
 
+	//设置消费投递成功回调
 	mwkfk_producer.SetDeliveredCallBack(NULL, func_on_msgdeliver);
 
 	//int add_cnt = mwkfk_producer.AddNewBrokers("192.169.6.234:9092,192.169.6.211:9092");
@@ -109,6 +121,7 @@ int main()
 	
 	printf("Init kfk_producer ok!\n");
 
+	//启动定时poll
 	MWEVENTLOOP::EventLoop ev_loop;
 	ev_loop.RunEvery(0.01, std::bind(onTimerPoll, mwkfk_producer));
 
@@ -118,15 +131,20 @@ int main()
 	std::string errmsg;
 	for (int i = 0; i < g_test_num; ++i)
 	{
-		ProduceMessagePtr pMsg(new produce_message_t());
-		pMsg->topic = pTopic;
-		pMsg->data.resize(msg_len);
-		pMsg->key = std::to_string(i+1);
-		
-		if(!mwkfk_producer.Produce(pMsg, errmsg)) 
+		for (int j = 0; j < g_test_topic_num; ++j)
 		{
-			printf("kfk_produce fail...%d-%s\n", i, errmsg.c_str());
-			sleep(1);
+			ProduceMessagePtr pMsg(new produce_message_t());
+			pMsg->topic = pTopic;
+			pMsg->topic += std::to_string(j);
+			pMsg->data.resize(msg_len);
+			pMsg->key = std::to_string(i+1);
+
+			//生产消费
+			if(!mwkfk_producer.Produce(pMsg, errmsg)) 
+			{
+				printf("kfk_produce fail...%d-%s\n", i, errmsg.c_str());
+				sleep(1);
+			}
 		}
 		/*
 		if(!mwkfk_producer.Produce(kTopicName2, strMsg.c_str(), strMsg.size(), std::to_string(i), any, errmsg)) 

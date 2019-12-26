@@ -19,6 +19,8 @@ const char* kBrokerList = "192.169.6.234:9092";
 
 const char* kLogPath = "./consumer.log";
 
+//测试500个topic的消费
+const int g_test_topic_num = 500;
 
 using namespace mwkfk;
 using namespace MWTHREAD;
@@ -123,23 +125,33 @@ void func_on_offsetcommitted(void* pInvoker, const ConsumedMessagePtr& cb_msg_pt
 
 void* simpleConsumer() 
 {
+	//初始化consumer
 	if (mwkfk_consumer.Init(kGroupName, kBrokerList, kLogPath, kConfigPath)) 
 	{
-		topic_info_t topic_info;
-		topic_info.topic = kTopicName;
-		topic_info.partition = -1;
-		topic_info.offset = OFFSET_INVALID;
+		//加入一批topic
 		std::vector<topic_info_t> topics;
-		topics.push_back(topic_info);
-		std::cout << " topic: " << kTopicName << " | group: " << kGroupName << std::endl;
-
+		for (int j = 0; j < g_test_topic_num; ++j)
+		{
+			topic_info_t topic_info;
+			topic_info.topic = kTopicName;
+			topic_info.topic += std::to_string(j);
+			topic_info.partition = -1;
+			topic_info.offset = OFFSET_INVALID;
+			topics.push_back(topic_info);
+			std::cout << " topic: " << topic_info.topic << " | group: " << kGroupName << std::endl;
+		}
+		
+		//设置消费到的消息回调函数
 		mwkfk_consumer.SetConsumedCallBack(NULL, func_on_msgconsumed);
+
+		//设置偏移量提交结果回调函数
 		mwkfk_consumer.SetOffsetCommitCallBack(NULL, func_on_offsetcommitted);
 
+		//设置偏移量提交策略(10000条或1秒钟提交一次)
 		mwkfk_consumer.SetOffsetCommitPolicy(10000, 1000);
-		
-		g_thrpool.StartThreadPool(1);
 
+		//把定时poll的动作放到线程池中
+		g_thrpool.StartThreadPool(1);
 		MWTHREAD::Thread thr1(std::bind(thrPoll, mwkfk_consumer), "thrPoll-1");	
 		thr1.StartThread();
 
@@ -148,6 +160,7 @@ void* simpleConsumer()
 
 		printf("init ok...\n");
 
+		//订阅topic
 		std::string strErrMsg = "";
 		if (mwkfk_consumer.Subscribe(topics, strErrMsg))
 		{
